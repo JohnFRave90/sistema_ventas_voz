@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}Listado de Cambios{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-2 py-3">
+  <h4 class="mb-4 text-center">Listado de Cambios</h4>
+
+  <div class="d-flex justify-content-end mb-3">
+    <a href="{{ url_for('cambios.crear_cambio') }}" class="btn btn-success">
+      <i class="bi bi-plus-circle me-1"></i> Agregar Cambio
+    </a>
+  </div>
+
+  <!-- Filtros -->
+  <form method="get" class="row g-2 mb-3">
+    <div class="col-12 col-sm-3">
+      <input type="date" name="fecha_inicio" class="form-control"
+             value="{{ request.args.get('fecha_inicio', '') }}" placeholder="Fecha desde">
+    </div>
+    <div class="col-12 col-sm-3">
+      <input type="date" name="fecha_fin" class="form-control"
+             value="{{ request.args.get('fecha_fin', '') }}" placeholder="Fecha hasta">
+    </div>
+    <div class="col-12 col-sm-4">
+      <input type="text" name="codigo_vendedor" class="form-control" placeholder="Código Vendedor"
+             value="{{ request.args.get('codigo_vendedor', '') }}">
+    </div>
+    <div class="col-12 col-sm-2 d-grid">
+      <button type="submit" class="btn btn-primary"><i class="bi bi-search"></i> Filtrar</button>
+    </div>
+  </form>
+
+  <div class="table-responsive">
+    <table class="table table-hover align-middle">
+      <thead class="table-light">
+        <tr>
+          <th>Fecha</th>
+          <th>Cod Vendedor</th>
+          <th>Nombre Vendedor</th>
+          <th>Valor Cambio</th>
+          <th>Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in cambios %}
+        <tr>
+          <td>{{ c.fecha.strftime('%Y-%m-%d') }}</td>
+          <td>{{ c.codigo_vendedor }}</td>
+          <td>
+            {% set vendedor = vendedores_dict.get(c.codigo_vendedor) %}
+            {{ vendedor.nombre if vendedor else '-' }}
+          </td>
+          <td>${{ "{:,.0f}".format(c.valor_cambio) }}</td>
+          <td>
+            <div class="d-flex gap-2">
+              <a href="{{ url_for('cambios.editar_cambio', id=c.id) }}" class="btn btn-sm btn-outline-primary" title="Editar">
+                <i class="bi bi-pencil-square"></i>
+              </a>
+              {% if current_user.rol == 'administrador' %}
+              <form method="post"
+                    action="{{ url_for('cambios.eliminar_cambio', id=c.id) }}"
+                    onsubmit="return confirm('¿Seguro desea eliminar este cambio?');">
+                <button class="btn btn-sm btn-outline-danger" title="Eliminar">
+                  <i class="bi bi-trash3"></i>
+                </button>
+              </form>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="5" class="text-center">No hay cambios registrados.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,42 @@
+{% extends 'base.html' %}
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+
+<h3 class="text-center mb-4">
+  Bienvenido, 
+  {{ current_user.nombre_usuario if current_user.rol != 'vendedor' else current_user.nombre }}
+</h3>
+
+<!-- RESUMEN DE INDICADORES -->
+<div class="row text-center mb-5">
+  <div class="col-md-4 mb-3">
+    <div class="card shadow-sm border-0 bg-light">
+      <div class="card-body">
+        <i class="bi bi-cash-stack fs-3 text-success"></i>
+        <h6 class="mt-2">Ventas del día</h6>
+        <h5>$0</h5>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4 mb-3">
+    <div class="card shadow-sm border-0 bg-light">
+      <div class="card-body">
+        <i class="bi bi-bar-chart-line fs-3 text-primary"></i>
+        <h6 class="mt-2">Proyección mensual</h6>
+        <h5>$0</h5>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4 mb-3">
+    <div class="card shadow-sm border-0 bg-light">
+      <div class="card-body">
+        <i class="bi bi-percent fs-3 text-warning"></i>
+        <h6 class="mt-2">Comisión acumulada</h6>
+        <h5>$0</h5>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}

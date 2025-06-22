@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Reporte de Liquidaciones{% endblock %}
+{% block content %}
+
+<h3>Reporte de Liquidaciones</h3>
+
+<div class="card shadow-sm mb-3">
+  <div class="card-body">
+    <form method="get" action="{{ url_for('reportes_liquidaciones.export_liquidaciones_excel') }}" class="row g-2 mb-2" id="form_detallado">
+      <div class="col-md-3">
+        <label>Fecha Inicio</label>
+        <input type="date" name="fecha_inicio" class="form-control" required>
+      </div>
+      <div class="col-md-3">
+        <label>Fecha Fin</label>
+        <input type="date" name="fecha_fin" class="form-control" required>
+      </div>
+      <div class="col-md-3">
+        <label>Código Vendedor (opcional)</label>
+        <input type="text" name="codigo_vendedor" class="form-control" placeholder="Ej: 10001">
+      </div>
+      <div class="col-md-3 d-flex align-items-end">
+        <button type="submit" class="btn btn-success w-100">
+          <i class="bi bi-file-earmark-excel"></i> Exportar Detallado
+        </button>
+      </div>
+    </form>
+
+    <form method="get" action="{{ url_for('reportes_liquidaciones.export_liquidaciones_diario_excel') }}" class="row g-2">
+      <div class="col-md-3">
+        <label>Fecha Inicio</label>
+        <input type="date" name="fecha_inicio" class="form-control" required>
+      </div>
+      <div class="col-md-3">
+        <label>Fecha Fin</label>
+        <input type="date" name="fecha_fin" class="form-control" required>
+      </div>
+      <div class="col-md-3 d-flex align-items-end">
+        <button type="submit" class="btn btn-primary w-100">
+          <i class="bi bi-file-earmark-excel"></i> Exportar Consolidado Diario
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% endblock %}
+

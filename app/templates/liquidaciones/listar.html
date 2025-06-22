@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+{% block title %}Listado de Liquidaciones{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-2 py-3">
+  <h4 class="mb-4 text-center">Listado de Liquidaciones</h4>
+
+  <div class="d-flex justify-content-end mb-3">
+    <a href="{{ url_for('liquidaciones.crear_liquidacion') }}" class="btn btn-success">
+      <i class="bi bi-plus-circle me-1"></i> Agregar Liquidación
+    </a>
+  </div>
+
+  <!-- Filtros -->
+  <form method="get" class="row g-2 mb-3">
+    <div class="col-12 col-sm-3">
+      <input type="date" name="fecha_inicio" class="form-control"
+             value="{{ fecha_inicio or '' }}" placeholder="Fecha desde">
+    </div>
+    <div class="col-12 col-sm-3">
+      <input type="date" name="fecha_fin" class="form-control"
+             value="{{ fecha_fin or '' }}" placeholder="Fecha hasta">
+    </div>
+    <div class="col-12 col-sm-4">
+      <input type="text" name="codigo" class="form-control" placeholder="Código LQ-XXXX"
+             value="{{ codigo or '' }}">
+    </div>
+    <div class="col-12 col-sm-2 d-grid">
+      <button type="submit" class="btn btn-primary"><i class="bi bi-search"></i> Filtrar</button>
+    </div>
+  </form>
+
+  <div class="table-responsive">
+    <table class="table table-hover align-middle">
+      <thead class="table-light">
+        <tr>
+          <th>LQ</th>
+          <th>Fecha</th>
+          <th>Cod Vendedor</th>
+          <th>Nombre Vendedor</th>
+          <th>Venta</th>
+          <th>Venta Total</th>
+          <th>Comisión</th>
+          <th>A Panadería</th>
+          <th>Descuento Cambios</th>
+          <th>Total a Pagar</th>
+          <th>Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for l in liquidaciones %}
+        <tr>
+          <td>{{ l.codigo }}</td>
+          <td>{{ l.fecha.strftime('%Y-%m-%d') }}</td>
+          <td>{{ l.codigo_vendedor }}</td>
+          <td>
+            {% set vendedor = vendedores_dict.get(l.codigo_vendedor) %}
+            {{ vendedor.nombre if vendedor else '-' }}
+          </td>
+          <td>{{ "VT-%04d"|format(l.codigo_venta) }}</td>
+          <td>${{ "{:,.0f}".format(l.valor_venta) }}</td>
+          <td>${{ "{:,.0f}".format(l.valor_comision) }}</td>
+          <td>${{ "{:,.0f}".format(l.valor_venta - l.valor_comision) }}</td>
+          <td>${{ "{:,.0f}".format(l.descuento_cambios) }}</td>
+          <td>${{ "{:,.0f}".format(l.valor_a_pagar) }}</td>
+          <td>
+            <div class="d-flex gap-2">
+              <a href="{{ url_for('liquidaciones.exportar_liquidacion_pdf', id=l.id) }}"
+                 class="btn btn-sm btn-outline-secondary" title="PDF">
+                <i class="bi bi-file-earmark-pdf-fill"></i>
+              </a>
+              {% if current_user.rol == 'administrador' %}
+              <a href="{{ url_for('liquidaciones.editar_liquidacion', id=l.id) }}"
+                 class="btn btn-sm btn-outline-primary" title="Editar">
+                <i class="bi bi-pencil-square"></i>
+              </a>
+              <form method="post"
+                    action="{{ url_for('liquidaciones.eliminar_liquidacion', id=l.id) }}"
+                    onsubmit="return confirm('¿Seguro desea eliminar esta liquidación?');">
+                <button class="btn btn-sm btn-outline-danger" title="Eliminar">
+                  <i class="bi bi-trash3"></i>
+                </button>
+              </form>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="11" class="text-center">No hay liquidaciones registradas.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Paginación -->
+  {% if pagination %}
+  <nav aria-label="Paginación de liquidaciones">
+    <ul class="pagination justify-content-center">
+      {% if pagination.has_prev %}
+      <li class="page-item">
+        <a class="page-link"
+           href="{{ url_for('liquidaciones.listar_liquidaciones', page=pagination.prev_num, fecha_inicio=fecha_inicio, fecha_fin=fecha_fin, codigo=codigo) }}">
+          Anterior
+        </a>
+      </li>
+      {% else %}
+      <li class="page-item disabled"><span class="page-link">Anterior</span></li>
+      {% endif %}
+
+      {% for p in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+        {% if p %}
+          {% if p == pagination.page %}
+            <li class="page-item active"><span class="page-link">{{ p }}</span></li>
+          {% else %}
+            <li class="page-item">
+              <a class="page-link"
+                 href="{{ url_for('liquidaciones.listar_liquidaciones', page=p, fecha_inicio=fecha_inicio, fecha_fin=fecha_fin, codigo=codigo) }}">
+                {{ p }}
+              </a>
+            </li>
+          {% endif %}
+        {% else %}
+          <li class="page-item disabled"><span class="page-link">…</span></li>
+        {% endif %}
+      {% endfor %}
+
+      {% if pagination.has_next %}
+      <li class="page-item">
+        <a class="page-link"
+           href="{{ url_for('liquidaciones.listar_liquidaciones', page=pagination.next_num, fecha_inicio=fecha_inicio, fecha_fin=fecha_fin, codigo=codigo) }}">
+          Siguiente
+        </a>
+      </li>
+      {% else %}
+      <li class="page-item disabled"><span class="page-link">Siguiente</span></li>
+      {% endif %}
+    </ul>
+  </nav>
+  {% endif %}
+</div>
+{% endblock %}
