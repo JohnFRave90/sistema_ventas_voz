@@ -1,75 +1,147 @@
-# app/routes/dialogflow_webhook.py
+# app/routes/dialogflow_webhook_cx.py
 
-from flask import Blueprint, request, jsonify
-from app.extensions import socketio, db # <--- IMPORTAMOS DESDE extensions.py
+from flask import Blueprint, request, jsonify, session
+from app.extensions import db, socketio
+from app.models.usuario import Usuario
 from app.models.pedidos import BDPedido
 from app.models.extras import BDExtra
-from app.models.vendedor import Vendedor
 from app.models.producto import Producto
-import locale
-import json
+from app.models.despachos import BDDespacho
+from datetime import datetime, timedelta
 
-dialogflow_bp = Blueprint("dialogflow", __name__)
+dialogflow_cx_bp = Blueprint("dialogflow_cx", __name__)
 
-def buscar_documento(tipo_doc, consecutivo):
-    if not tipo_doc or not consecutivo: return None
-    if tipo_doc.lower() == 'pedido':
-        return BDPedido.query.filter_by(consecutivo=consecutivo).first()
-    elif tipo_doc.lower() == 'extra':
-        return BDExtra.query.filter_by(consecutivo=consecutivo).first()
-    return None
+# Simulador de almacenamiento en memoria de sesiones y productos temporalmente
+session_data = {}
 
-@dialogflow_bp.route("/webhook", methods=["POST"])
-def webhook():
-    try:
-        print("--- EJECUTANDO VERSIÓN DE CÓDIGO FINAL ---")
-        try:
-            locale.setlocale(locale.LC_TIME, 'es_ES.UTF-8')
-        except locale.Error:
-            try: locale.setlocale(locale.LC_TIME, 'Spanish')
-            except locale.Error: print("ADVERTENCIA: No se pudo establecer el locale a español.")
+@dialogflow_cx_bp.route("/webhook", methods=["POST"])
+def webhook_cx():
+    req = request.get_json()
+    tag = req.get("fulfillmentInfo", {}).get("tag", "")
+    session_id = req.get("sessionInfo", {}).get("session", "").split("/")[-1]
+    params = req.get("sessionInfo", {}).get("parameters", {})
 
-        req = request.get_json(silent=True, force=True)
-        
-        # Limpiamos y normalizamos el nombre del intent
-        intent_name = req.get("queryResult", {}).get("intent", {}).get("displayName", "").strip().lower()
-        
-        print(f"🎯 Intent detectado (limpio): '{intent_name}'")
-        
-        if intent_name == "creardespacho":
-            print("✅ Lógica para 'creardespacho' iniciada.")
-            params = req.get("queryResult", {}).get("parameters", {})
-            tipo_doc = params.get("tipo_documento")
-            numero_doc = params.get("number")
+    print(f"🎯 Tag recibido: {tag}")
 
-            if not tipo_doc or numero_doc is None:
-                return jsonify({"fulfillmentText": "No entendí bien. Por favor, dime si es un pedido o un extra y qué número tiene."})
+    if tag == "iniciar_sesion":
+        usuario_param = params.get("usuario")
+        pin_param = params.get("pin")
 
-            prefix = "PD-" if tipo_doc.lower() == 'pedido' else "EX-"
-            consecutivo = f"{prefix}{int(numero_doc):05d}"
-            
-            documento = buscar_documento(tipo_doc, consecutivo)
-            vendedor = Vendedor.query.filter_by(codigo_vendedor=documento.codigo_vendedor).first()
-            nombre_vendedor = vendedor.nombre if vendedor else f"código {documento.codigo_vendedor}"
-            fecha_formateada = documento.fecha.strftime('%d de %B de %Y')
-
-            if documento:
-                url_despacho = f"/despachos/crear/{consecutivo}"
-                socketio.emit('abrir_pagina', {'url': url_despacho})
-                mensaje_respuesta = f"Entendido, preparando el despacho para el {tipo_doc}  {consecutivo} del vendedor {nombre_vendedor} del día {fecha_formateada}."
-                return jsonify({"fulfillmentText": mensaje_respuesta})
-            else:
-                mensaje_respuesta = f"No pude encontrar el {tipo_doc} con el número {int(numero_doc)}."
-                return jsonify({"fulfillmentText": mensaje_respuesta})
-
-        elif intent_name == "dictarproducto":
-            # ... (la lógica para este intent se mantiene) ...
-            return jsonify({"fulfillmentText": "Lógica de dictado pendiente."})
-
+        # Extraer valores seguros
+        if isinstance(usuario_param, dict):
+            nombre = usuario_param.get('original', '').strip().lower()
         else:
-            print(f"❓ Intent no manejado: '{intent_name}'")
-            return jsonify({"fulfillmentText": "No he entendido esa orden, por favor, prueba de nuevo."})
+            nombre = str(usuario_param).strip().lower()
 
-    except Exception as e:
-        print(f"❌ Error fatal en webhook: {e}")
-        return jsonify({"fulfillmentText": "Lo siento, ocurrió un error interno en el servidor."})
+        if isinstance(pin_param, (int, float)):
+            pin = str(int(pin_param))  # ✅ elimina decimales si llegan
+        else:
+            pin = str(pin_param).strip()
+
+
+        print(f"[🔐 Login attempt] nombre_usuario='{nombre}', pin='{pin}'")
+
+        usuario = Usuario.query.filter(
+            db.func.lower(Usuario.nombre_usuario) == nombre
+        ).first()
+
+        if not usuario:
+            return responder(f"No encontré ningún usuario llamado {nombre}. ¿Lo puedes repetir?")
+        
+        if not usuario.check_pin(pin):
+            return responder(f"El PIN ingresado no es correcto para {nombre}. Intenta nuevamente.")
+
+        # Si todo está bien
+        session_data[session_id] = {
+            "usuario_id": usuario.id,
+            "nombre": usuario.nombre_usuario,
+            "timestamp": datetime.utcnow()
+        }
+
+        return responder(f"Hola {usuario.nombre_usuario}, ya puedes comenzar a dictar tu pedido.")
+
+
+
+    if tag == "crear_despacho":
+        tipo = params.get("tipo_documento", "").lower()
+        numero = params.get("numero")
+        if tipo not in ["pedido", "extra"] or not numero:
+            return responder("Faltan datos. ¿Es un pedido o un extra, y qué número tiene?")
+
+        prefix = "PD-" if tipo == "pedido" else "EX-"
+        consecutivo = f"{prefix}{int(numero):05d}"
+        documento = BDPedido.query.filter_by(consecutivo=consecutivo).first() if tipo == "pedido" else BDExtra.query.filter_by(consecutivo=consecutivo).first()
+        if not documento:
+            return responder(f"No encontré el {tipo} con número {numero}.")
+
+        despacho_existente = BDDespacho.query.filter_by(codigo_origen=consecutivo).first()
+        if despacho_existente:
+            url = f"/despachos/editar/{despacho_existente.id}"
+            socketio.emit("abrir_pagina", {"url": url, "usuario": session_id})
+            return responder(f"Ya existe un despacho para el {tipo} {consecutivo}. Abriendo edición.")
+
+        url = f"/despachos/crear/{consecutivo}"
+        socketio.emit("abrir_pagina", {"url": url, "usuario": session_id})
+        return responder(f"Preparando despacho para el {tipo} {consecutivo}.")
+
+    if tag == "dictar_producto":
+        nombre_prod = params.get("producto", "").strip()
+        cantidad = params.get("cantidad", 0)
+        lote = str(params.get("lote", "")).strip()
+
+        producto = Producto.query.filter(
+            (Producto.nombre.ilike(nombre_prod)) | (Producto.codigo.ilike(nombre_prod))
+        ).first()
+
+        if not producto:
+            return responder(f"No encontré el producto {nombre_prod}. Intenta de nuevo.")
+
+        if session_id not in session_data:
+            session_data[session_id] = {"productos": []}
+
+        # Guardar en la sesión del usuario
+        session_data[session_id].setdefault("productos", []).append({
+            "codigo": producto.codigo,
+            "nombre": producto.nombre,
+            "cantidad": cantidad,
+            "lote": lote
+        })
+
+        # 🔔 Emitir evento en tiempo real al navegador
+        socketio.emit("producto_dictado", {
+            "producto": {
+                "codigo": producto.codigo,
+                "nombre": producto.nombre,
+                "cantidad": cantidad,
+                "lote": lote
+            }
+        })
+
+        return responder(f"Agregado {cantidad} unidades de {producto.nombre} del lote {lote}.")
+
+
+    if tag == "confirmar_despacho":
+        if session_id not in session_data or not session_data[session_id].get("productos"):
+            return responder("No hay productos para guardar. Dicta al menos uno.")
+
+        resumen = "\n".join([
+            f"- {p['cantidad']} de {p['nombre']} (lote {p['lote']})"
+            for p in session_data[session_id]["productos"]
+        ])
+
+        return responder(f"¿Confirmas guardar este despacho con:\n{resumen}?")
+
+    if tag == "cerrar_sesion":
+        session_data.pop(session_id, None)
+        return responder("Sesión finalizada. Hasta luego.")
+
+    return responder("No entendí la instrucción.")
+
+def responder(mensaje):
+    return jsonify({
+        "fulfillment_response": {
+            "messages": [{"text": {"text": [mensaje]}}]
+        }
+    })
+    
+    

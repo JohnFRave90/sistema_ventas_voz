@@ -68,7 +68,7 @@ def create_app():
     from app.routes.canastas import bp_canastas
     from app.routes.movimientos import bp_movimientos
     from app.routes.configuracion import config_bp
-    from app.routes.dialogflow_webhook import dialogflow_bp
+    from app.routes.dialogflow_webhook import dialogflow_cx_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(main_bp)
@@ -89,7 +89,7 @@ def create_app():
     app.register_blueprint(bp_canastas)
     app.register_blueprint(bp_movimientos)
     app.register_blueprint(config_bp)
-    app.register_blueprint(dialogflow_bp)
+    app.register_blueprint(dialogflow_cx_bp, url_prefix="/")
 
     # Registrar comandos CLI personalizados
     from app.cli.root import crear_root

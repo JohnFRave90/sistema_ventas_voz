@@ -25,12 +25,15 @@
       <td>{{ u.id }}</td>
       <td>{{ u.nombre_usuario }}</td>
       <td>{{ u.rol | capitalize }}</td>
-      <td>
-        <a href="{{ url_for('usuarios.editar_usuario', id=u.id) }}" class="btn btn-sm btn-warning">
+      <td class="d-flex gap-1">
+        <a href="{{ url_for('usuarios.editar_usuario', id=u.id) }}" class="btn btn-sm btn-warning" title="Editar usuario">
           <i class="bi bi-pencil-square"></i>
         </a>
-        <a href="{{ url_for('usuarios.eliminar_usuario', id=u.id) }}" class="btn btn-sm btn-danger" onclick="return confirm('¿Seguro que deseas eliminar este usuario?');">
+        <a href="{{ url_for('usuarios.eliminar_usuario', id=u.id) }}" class="btn btn-sm btn-danger" title="Eliminar usuario" onclick="return confirm('¿Seguro que deseas eliminar este usuario?');">
           <i class="bi bi-trash"></i>
+        </a>
+        <a href="{{ url_for('usuarios.actualizar_pin_usuario', id=u.id) }}" class="btn btn-sm btn-info" title="Actualizar PIN">
+          <i class="bi bi-key"></i>
         </a>
       </td>
     </tr>

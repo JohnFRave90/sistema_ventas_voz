@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Actualizar PIN{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+  <h4>Actualizar PIN de {{ usuario.nombre_usuario }}</h4>
+  <form method="POST">
+    <div class="mb-3">
+      <label for="pin" class="form-label">Nuevo PIN</label>
+      <input type="text" class="form-control" id="pin" name="pin" required>
+    </div>
+    <button type="submit" class="btn btn-primary">Actualizar</button>
+    <a href="{{ url_for('usuarios.listar_usuarios') }}" class="btn btn-secondary">Cancelar</a>
+  </form>
+</div>
+{% endblock %}

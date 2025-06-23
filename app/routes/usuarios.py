@@ -94,4 +94,28 @@ def eliminar_usuario(id):
     flash('Usuario eliminado correctamente.', 'success')
     return redirect(url_for('usuarios.listar_usuarios'))
 
+# ACTUALIZAR PIN DEL USUARIO
+@usuarios_bp.route('/actualizar_pin/<int:id>', methods=['GET', 'POST'])
+@login_required
+@rol_requerido('administrador')
+def actualizar_pin_usuario(id):
+    usuario = Usuario.query.get_or_404(id)
+
+    # Proteger al usuario root
+    if usuario.rol == 'root':
+        flash('No tienes permiso para modificar este usuario.', 'danger')
+        return redirect(url_for('usuarios.listar_usuarios'))
+
+    if request.method == 'POST':
+        nuevo_pin = request.form['pin']
+        if not nuevo_pin.strip():
+            flash('El PIN no puede estar vacío.', 'danger')
+            return redirect(request.url)
+
+        usuario.set_pin(nuevo_pin)
+        db.session.commit()
+        flash(f'Se ha actualizado el PIN para {usuario.nombre_usuario}.', 'success')
+        return redirect(url_for('usuarios.listar_usuarios'))
+
+    return render_template('usuarios/actualizar_pin.html', usuario=usuario)
 

@@ -163,6 +163,50 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   updateTotal();
+
+  // Socket.IO para escuchar productos dictados por voz
+  const socket = io();
+  socket.on("producto_dictado", (data) => {
+    const prod = data.producto;
+    let encontrada = false;
+    container.querySelectorAll('.producto-row').forEach(row => {
+      const select = row.querySelector('.producto-select');
+      if (select.value === prod.codigo) {
+        row.querySelector('.cantidad-input').value = prod.cantidad;
+        row.querySelector('input[name="lote[]"]').value = prod.lote;
+        updateRow(row);
+        updateTotal();
+        encontrada = true;
+      }
+    });
+
+    if (!encontrada) {
+      const newRow = document.createElement('tr');
+      newRow.classList.add('producto-row');
+      newRow.innerHTML = `
+        <td>
+          <select name="producto_cod[]" class="form-select producto-select" required>
+            <option value="">Seleccione...</option>
+            ${productos.map(p => `
+              <option value="${p.codigo}" data-precio="${p.precio}"
+                ${p.codigo === prod.codigo ? 'selected' : ''}>${p.nombre}</option>
+            `).join('')}
+          </select>
+          <input type="hidden" name="precio_unitario[]" value="0">
+        </td>
+        <td><input type="number" name="cantidad_pedida[]" class="form-control" value="0" readonly></td>
+        <td><input type="number" name="cantidad_despachada[]" class="form-control cantidad-input" min="0" value="${prod.cantidad}"></td>
+        <td><input type="text" name="lote[]" class="form-control" value="${prod.lote}"></td>
+        <td class="text-end"><span class="subtotal-linea">0</span></td>
+        <td class="text-end"><button type="button" class="btn btn-outline-danger btn-remove p-1">×</button></td>
+      `;
+      container.appendChild(newRow);
+      newRow.querySelector('.producto-select').addEventListener('change', () => { updateRow(newRow); updateTotal(); });
+      newRow.querySelector('.cantidad-input').addEventListener('input', () => { updateRow(newRow); updateTotal(); });
+      updateRow(newRow);
+      updateTotal();
+    }
+  });
 });
 </script>
 {% endblock %}
