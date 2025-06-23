@@ -5,12 +5,10 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from flask_login import LoginManager
 from .config import Config
-import os
-from .config import Config
 from .extensions import db, migrate, login_manager, socketio
+import os
 
-# --- Extensiones ---
-# Nota: SocketIO ya no se inicializa aquí.
+# --- Inicialización de extensiones ---
 db = SQLAlchemy()
 migrate = Migrate()
 login_manager = LoginManager()
@@ -20,13 +18,11 @@ def create_app():
     app = Flask(__name__)
     app.config.from_object(Config)
 
-    # --- Inicializar extensiones con la app ---
     db.init_app(app)
     migrate.init_app(app, db)
     login_manager.init_app(app)
-    socketio.init_app(app)
+    socketio.init_app(app, cors_allowed_origins="*")  # 🔁 asegúrate de permitir el origen si usas ngrok
 
-    # --- Configuraciones y Blueprints ---
     login_manager.login_view = "auth.login"
     login_manager.login_message = "Debes iniciar sesión para continuar."
     login_manager.login_message_category = "warning"
@@ -42,13 +38,12 @@ def create_app():
                 return Vendedor.query.get(int(id_real))
         return Usuario.query.get(int(user_id))
 
-    # Ruta para servir archivos subidos
     @app.route('/uploads/<path:filename>')
     def descargar_archivo_uploads(filename):
         uploads_path = os.path.join(current_app.root_path, 'uploads')
         return send_from_directory(uploads_path, filename)
 
-    # Registrar Blueprints
+    # Blueprints
     from app.routes.auth import auth_bp
     from app.routes.main import main_bp
     from app.routes.vendedores import vendedores_bp
@@ -69,6 +64,7 @@ def create_app():
     from app.routes.movimientos import bp_movimientos
     from app.routes.configuracion import config_bp
     from app.routes.dialogflow_webhook import dialogflow_cx_bp
+    from app.routes.socket_events import socketio_bp  # 👂 ruta que registra los sockets
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(main_bp)
@@ -90,8 +86,9 @@ def create_app():
     app.register_blueprint(bp_movimientos)
     app.register_blueprint(config_bp)
     app.register_blueprint(dialogflow_cx_bp, url_prefix="/")
+    app.register_blueprint(socketio_bp)  # ✅
 
-    # Registrar comandos CLI personalizados
+    # CLI personalizado
     from app.cli.root import crear_root
     from app.cli.mantenimiento import borrar_movimientos_canastas, borrar_canastas_total
     app.cli.add_command(crear_root)

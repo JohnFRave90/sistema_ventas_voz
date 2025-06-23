@@ -1,7 +1,7 @@
 # run.py
 
 from app import create_app
-from app.extensions import socketio # <--- IMPORTAMOS socketio DESDE extensions.py
+from app.extensions import socketio
 
 app = create_app()
 

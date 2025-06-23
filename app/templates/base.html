@@ -40,13 +40,12 @@
         padding-top: 56px;
       }
     }
-    body {
-      padding-top: 56px;
-    }
+
+    body { padding-top: 56px; }
   </style>
 </head>
-<body class="bg-incolpan">
 
+<body class="bg-incolpan">
   <nav class="navbar navbar-expand-lg navbar-incolpan navbar-dark shadow fixed-top">
     <div class="container-fluid">
       {% if current_user.is_authenticated and request.endpoint != 'auth.login' %}
@@ -54,17 +53,15 @@
           <i class="bi bi-list fs-4"></i>
         </button>
       {% endif %}
-      <a class="navbar-brand d-flex align-items-center" href="
-        {% if current_user.rol == 'administrador' %}
-          {{ url_for('dashboard.dashboard_admin') }}
-        {% elif current_user.rol == 'semiadmin' %}
-          {{ url_for('dashboard.dashboard_semiadmin') }}
-        {% elif current_user.rol == 'vendedor' %}
-          {{ url_for('dashboard.dashboard_vendedor') }}
-        {% else %}
-          {{ url_for('dashboard.dashboard') }}
-        {% endif %}
-      ">
+      <a class="navbar-brand d-flex align-items-center" href="{% if current_user.rol == 'administrador' %}
+            {{ url_for('dashboard.dashboard_admin') }}
+          {% elif current_user.rol == 'semiadmin' %}
+            {{ url_for('dashboard.dashboard_semiadmin') }}
+          {% elif current_user.rol == 'vendedor' %}
+            {{ url_for('dashboard.dashboard_vendedor') }}
+          {% else %}
+            {{ url_for('dashboard.dashboard') }}
+          {% endif %}">
         <img src="{{ url_for('static', filename='logo_incolpan.png') }}" alt="Logo" style="height:50px; width:auto;">
       </a>
       <div class="mx-auto">
@@ -133,8 +130,12 @@
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
+
   <script>
-    setTimeout(() => document.querySelectorAll('.alert').forEach(a => a.classList.remove('show')), 15000);
+    setTimeout(() => {
+      document.querySelectorAll('.alert').forEach(a => a.classList.remove('show'));
+    }, 15000);
+
     window.addEventListener('DOMContentLoaded', () => {
       if (document.querySelector('.alert-danger')) {
         new Audio("{{ url_for('static', filename='alert.mp3') }}").play();
@@ -145,26 +146,43 @@
       }
     });
   </script>
+
   <script>
     document.addEventListener("DOMContentLoaded", () => {
-        const socket = io();
+      let sessionId = "{{ session.get('session_id', '') }}";
+      if (!sessionId) {
+        const params = new URLSearchParams(window.location.search);
+        sessionId = params.get("session_id") || "";
+        if (sessionId) {
+          console.log("📥 session_id tomado de la URL:", sessionId);
+        }
+      }
+      const socket = io({
+        auth: { session_id: sessionId }
+      });
 
-        socket.on('connect', () => {
-            console.log('Socket.IO conectado globalmente.');
-        });
+      socket.on('connect', () => {
+        console.log('✅ Socket.IO conectado correctamente con id:', socket.id);
+        if (sessionId) {
+          socket.emit("registrar_socket", { session_id: sessionId });
+          console.log("📩 Registrando socket con session_id:", sessionId);
+        } else {
+          console.warn("⚠️ No hay session_id disponible en sesión Flask.");
+        }
+      });
 
-        // Escucha la orden para abrir una nueva página
-        socket.on('abrir_pagina', function(data) {
-            console.log('Orden recibida para abrir página:', data.url);
-            if (data.url) {
-                // Redirige el navegador a la URL recibida
-                window.location.href = data.url;
-            }
-        });
+      socket.on('abrir_pagina', function(data) {
+        console.log('🔀 Abrir página:', data.url);
+        if (data.url) window.location.href = data.url;
+      });
+
+      socket.on('producto_dictado', function(data) {
+        console.log('📦 Producto dictado recibido globalmente:', data.producto);
+        // Cada vista decide cómo manejar este evento
+      });
     });
   </script>
 
   {% block scripts %}{% endblock %}
-
 </body>
 </html>

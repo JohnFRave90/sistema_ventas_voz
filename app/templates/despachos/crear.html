@@ -44,8 +44,7 @@
               <select name="producto_cod[]" class="form-select producto-select" required>
                 <option value="">Seleccione...</option>
                 {% for p in productos %}
-                <option value="{{ p.codigo }}" data-precio="{{ p.precio }}"
-                        {% if p.codigo == item.producto_cod %}selected{% endif %}>
+                <option value="{{ p.codigo }}" data-precio="{{ p.precio }}" {% if p.codigo == item.producto_cod %}selected{% endif %}>
                   {{ p.nombre }}
                 </option>
                 {% endfor %}
@@ -61,9 +60,7 @@
             <td>
               <input type="text" name="lote[]" class="form-control">
             </td>
-            <td class="text-end">
-              <span class="subtotal-linea">0</span>
-            </td>
+            <td class="text-end"><span class="subtotal-linea">0</span></td>
             <td class="text-end">
               <button type="button" class="btn btn-outline-danger btn-remove p-1">×</button>
             </td>
@@ -106,8 +103,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const precio = parseFloat(select?.selectedOptions[0]?.dataset.precio || 0);
     const cantidad = parseFloat(row.querySelector('.cantidad-input').value) || 0;
     const subtotal = precio * cantidad;
-    row.querySelector('.subtotal-linea').textContent =
-      subtotal.toLocaleString('es-CO', { maximumFractionDigits: 0 });
+    row.querySelector('.subtotal-linea').textContent = subtotal.toLocaleString('es-CO', { maximumFractionDigits: 0 });
     row.querySelector('input[name="precio_unitario[]"]').value = precio;
   }
 
@@ -164,11 +160,31 @@ document.addEventListener("DOMContentLoaded", () => {
 
   updateTotal();
 
-  // Socket.IO para escuchar productos dictados por voz
-  const socket = io();
+  // Detectar session_id desde URL (si está presente)
+  const urlParams = new URLSearchParams(window.location.search);
+  const sessionIdFromUrl = urlParams.get("session_id");
+  console.log("📥 session_id tomado de la URL:", sessionIdFromUrl);
+
+  // Reestablecer socket y registrar
+  const socket = io({
+    auth: {
+      session_id: sessionIdFromUrl || ""
+    }
+  });
+
+  socket.on('connect', () => {
+    console.log('✅ Socket.IO conectado correctamente con id:', socket.id);
+    if (sessionIdFromUrl) {
+      socket.emit("registrar_socket", { session_id: sessionIdFromUrl });
+      console.log("📩 Registrando socket con session_id:", sessionIdFromUrl);
+    }
+  });
+
   socket.on("producto_dictado", (data) => {
     const prod = data.producto;
+    console.log("📦 Producto recibido vía socket:", prod);
     let encontrada = false;
+
     container.querySelectorAll('.producto-row').forEach(row => {
       const select = row.querySelector('.producto-select');
       if (select.value === prod.codigo) {
@@ -187,10 +203,7 @@ document.addEventListener("DOMContentLoaded", () => {
         <td>
           <select name="producto_cod[]" class="form-select producto-select" required>
             <option value="">Seleccione...</option>
-            ${productos.map(p => `
-              <option value="${p.codigo}" data-precio="${p.precio}"
-                ${p.codigo === prod.codigo ? 'selected' : ''}>${p.nombre}</option>
-            `).join('')}
+            ${productos.map(p => `<option value="${p.codigo}" data-precio="${p.precio}" ${p.codigo === prod.codigo ? 'selected' : ''}>${p.nombre}</option>`).join('')}
           </select>
           <input type="hidden" name="precio_unitario[]" value="0">
         </td>
