@@ -1,3 +1,5 @@
+# app/models/despachos.py
+
 from app import db
 
 # Modelo principal del despacho
@@ -6,9 +8,9 @@ class BDDespacho(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     fecha = db.Column(db.Date, nullable=False)
-    vendedor_cod = db.Column(db.String(20), nullable=False)
-    codigo_origen = db.Column(db.String(20), nullable=False)  # PD-xxxxx o EX-xxxxx
-    tipo_origen = db.Column(db.String(10), nullable=False)    # "pedido" o "extra"
+    vendedor_cod = db.Column(db.String(25), db.ForeignKey('vendedores.codigo_vendedor'), nullable=False)
+    codigo_origen = db.Column(db.String(20), nullable=False)
+    tipo_origen = db.Column(db.String(10), nullable=False)
     despachado = db.Column(db.Boolean, default=False)
     comentarios = db.Column(db.Text)
 
@@ -17,6 +19,7 @@ class BDDespacho(db.Model):
         back_populates='despacho',
         cascade='all, delete-orphan'
     )
+    vendedor = db.relationship('Vendedor')
 
 
 # Modelo por producto despachado
@@ -25,7 +28,8 @@ class BDDespachoItem(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     despacho_id = db.Column(db.Integer, db.ForeignKey('BD_DESPACHOS.id'), nullable=False)
-    producto_cod = db.Column(db.String(20), nullable=False)
+    # Se añade llave foránea a la tabla de productos para integridad
+    producto_cod = db.Column(db.String(20), db.ForeignKey('productos.codigo'), nullable=False)
     cantidad_pedida = db.Column(db.Integer, default=0)
     cantidad = db.Column(db.Integer, nullable=False)
     lote = db.Column(db.String(20), nullable=True)
@@ -36,3 +40,4 @@ class BDDespachoItem(db.Model):
     extra_id = db.Column(db.Integer, db.ForeignKey('BD_EXTRAS.id'), nullable=True)
 
     despacho = db.relationship('BDDespacho', back_populates='items')
+    producto = db.relationship('Producto')

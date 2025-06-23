@@ -1,44 +1,46 @@
-from flask import Flask
+# app/__init__.py
+
+from flask import Flask, send_from_directory, current_app
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from flask_login import LoginManager
 from .config import Config
-from flask import send_from_directory, current_app
 import os
+from .config import Config
+from .extensions import db, migrate, login_manager, socketio
 
-# Extensiones (declaradas primero para evitar ciclos)
+# --- Extensiones ---
+# Nota: SocketIO ya no se inicializa aquí.
 db = SQLAlchemy()
 migrate = Migrate()
 login_manager = LoginManager()
 
+# --- Factory de la Aplicación ---
 def create_app():
     app = Flask(__name__)
     app.config.from_object(Config)
 
-    # Inicializar extensiones
+    # --- Inicializar extensiones con la app ---
     db.init_app(app)
     migrate.init_app(app, db)
     login_manager.init_app(app)
+    socketio.init_app(app)
 
+    # --- Configuraciones y Blueprints ---
     login_manager.login_view = "auth.login"
     login_manager.login_message = "Debes iniciar sesión para continuar."
     login_manager.login_message_category = "warning"
 
-    # IMPORTACIONES DENTRO DE LA FUNCIÓN PARA EVITAR CICLOS
     from app.models.usuario import Usuario
     from app.models.vendedor import Vendedor
-    from app.routes.utils import UserWrapper
 
     @login_manager.user_loader
     def load_user(user_id):
         if ':' in user_id:
-            tipo, id_real = user_id.split(':')
+            tipo, id_real = user_id.split(':', 1)
             if tipo == 'vendedor':
                 return Vendedor.query.get(int(id_real))
-            elif tipo == 'usuario':
-                return Usuario.query.get(int(id_real))
-        else:
-            return Usuario.query.get(int(user_id))  # Fallback si no tiene prefijo
+        return Usuario.query.get(int(user_id))
 
     # Ruta para servir archivos subidos
     @app.route('/uploads/<path:filename>')
@@ -88,7 +90,6 @@ def create_app():
     app.register_blueprint(bp_movimientos)
     app.register_blueprint(config_bp)
     app.register_blueprint(dialogflow_bp)
-    
 
     # Registrar comandos CLI personalizados
     from app.cli.root import crear_root

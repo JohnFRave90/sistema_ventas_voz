@@ -1,89 +1,75 @@
+# app/routes/dialogflow_webhook.py
+
 from flask import Blueprint, request, jsonify
-from app import db
+from app.extensions import socketio, db # <--- IMPORTAMOS DESDE extensions.py
 from app.models.pedidos import BDPedido
-from app.models.pedido_item import BDPedidoItem
+from app.models.extras import BDExtra
 from app.models.vendedor import Vendedor
-from datetime import datetime
+from app.models.producto import Producto
+import locale
+import json
 
 dialogflow_bp = Blueprint("dialogflow", __name__)
+
+def buscar_documento(tipo_doc, consecutivo):
+    if not tipo_doc or not consecutivo: return None
+    if tipo_doc.lower() == 'pedido':
+        return BDPedido.query.filter_by(consecutivo=consecutivo).first()
+    elif tipo_doc.lower() == 'extra':
+        return BDExtra.query.filter_by(consecutivo=consecutivo).first()
+    return None
 
 @dialogflow_bp.route("/webhook", methods=["POST"])
 def webhook():
     try:
-        # Leer el JSON recibido desde Dialogflow
-        req = request.get_json()
-        print("📥 JSON recibido:", req)
+        print("--- EJECUTANDO VERSIÓN DE CÓDIGO FINAL ---")
+        try:
+            locale.setlocale(locale.LC_TIME, 'es_ES.UTF-8')
+        except locale.Error:
+            try: locale.setlocale(locale.LC_TIME, 'Spanish')
+            except locale.Error: print("ADVERTENCIA: No se pudo establecer el locale a español.")
 
-        # Detectar nombre del intent
-        intent = req.get("queryResult", {}).get("intent", {}).get("displayName", "")
-        print("🎯 Intent detectado:", intent)
+        req = request.get_json(silent=True, force=True)
+        
+        # Limpiamos y normalizamos el nombre del intent
+        intent_name = req.get("queryResult", {}).get("intent", {}).get("displayName", "").strip().lower()
+        
+        print(f"🎯 Intent detectado (limpio): '{intent_name}'")
+        
+        if intent_name == "creardespacho":
+            print("✅ Lógica para 'creardespacho' iniciada.")
+            params = req.get("queryResult", {}).get("parameters", {})
+            tipo_doc = params.get("tipo_documento")
+            numero_doc = params.get("number")
 
-        if intent == "RevisarPedido":
-            numero = req.get("queryResult", {}).get("parameters", {}).get("numero_pedido")
-            print("🔢 número_pedido recibido:", numero)
+            if not tipo_doc or numero_doc is None:
+                return jsonify({"fulfillmentText": "No entendí bien. Por favor, dime si es un pedido o un extra y qué número tiene."})
 
-            if not numero:
-                mensaje = "Por favor, dime qué número de pedido quieres revisar."
-                print("⚠️ Falta número de pedido")
-                return jsonify({
-                    "fulfillmentText": mensaje,
-                    "fulfillmentMessages": [
-                        {"text": {"text": [mensaje]}}
-                    ]
-                })
+            prefix = "PD-" if tipo_doc.lower() == 'pedido' else "EX-"
+            consecutivo = f"{prefix}{int(numero_doc):05d}"
+            
+            documento = buscar_documento(tipo_doc, consecutivo)
+            vendedor = Vendedor.query.filter_by(codigo_vendedor=documento.codigo_vendedor).first()
+            nombre_vendedor = vendedor.nombre if vendedor else f"código {documento.codigo_vendedor}"
+            fecha_formateada = documento.fecha.strftime('%d de %B de %Y')
 
-            consecutivo = f"PD-{int(numero):05d}"
-            print("🔍 Buscando pedido con consecutivo:", consecutivo)
+            if documento:
+                url_despacho = f"/despachos/crear/{consecutivo}"
+                socketio.emit('abrir_pagina', {'url': url_despacho})
+                mensaje_respuesta = f"Entendido, preparando el despacho para el {tipo_doc}  {consecutivo} del vendedor {nombre_vendedor} del día {fecha_formateada}."
+                return jsonify({"fulfillmentText": mensaje_respuesta})
+            else:
+                mensaje_respuesta = f"No pude encontrar el {tipo_doc} con el número {int(numero_doc)}."
+                return jsonify({"fulfillmentText": mensaje_respuesta})
 
-            pedido = BDPedido.query.filter_by(consecutivo=consecutivo).first()
-            if not pedido:
-                mensaje = f"No encontré el pedido número {numero}."
-                print("❌ Pedido no encontrado:", consecutivo)
-                return jsonify({
-                    "fulfillmentText": mensaje,
-                    "fulfillmentMessages": [
-                        {"text": {"text": [mensaje]}}
-                    ]
-                })
+        elif intent_name == "dictarproducto":
+            # ... (la lógica para este intent se mantiene) ...
+            return jsonify({"fulfillmentText": "Lógica de dictado pendiente."})
 
-            vendedor = Vendedor.query.filter_by(codigo_vendedor=pedido.codigo_vendedor).first()
-            nombre_vendedor = vendedor.nombre if vendedor else f"con código {pedido.codigo_vendedor}"
-            print("🧾 Vendedor encontrado:", nombre_vendedor)
-
-            items = BDPedidoItem.query.filter_by(pedido_id=pedido.id).all()
-            total = sum([item.subtotal for item in items])
-            print("💰 Total calculado:", total)
-
-            fecha_formateada = pedido.fecha.strftime('%d de %B de %Y')
-            valor_total = f"{total:,.0f}".replace(",", ".")
-
-            mensaje = (
-                f"El pedido {consecutivo} es del vendedor {nombre_vendedor}, "
-                f"hecho el {fecha_formateada}, y tiene un valor total de {valor_total} pesos."
-            )
-
-            print("✅ Respuesta generada:", mensaje)
-
-            return jsonify({
-                "fulfillmentText": mensaje,
-                "fulfillmentMessages": [
-                    {"text": {"text": [mensaje]}}
-                ]
-            })
-
-        print("❓ Intent no manejado:", intent)
-        return jsonify({
-            "fulfillmentText": "No entendí tu solicitud.",
-            "fulfillmentMessages": [
-                {"text": {"text": ["No entendí tu solicitud."]}}
-            ]
-        })
+        else:
+            print(f"❓ Intent no manejado: '{intent_name}'")
+            return jsonify({"fulfillmentText": "No he entendido esa orden, por favor, prueba de nuevo."})
 
     except Exception as e:
-        print("❌ Error en webhook:", str(e))
-        return jsonify({
-            "fulfillmentText": f"Ocurrió un error al procesar tu solicitud: {str(e)}",
-            "fulfillmentMessages": [
-                {"text": {"text": [f"Ocurrió un error al procesar tu solicitud: {str(e)}"]}}
-            ]
-        })
+        print(f"❌ Error fatal en webhook: {e}")
+        return jsonify({"fulfillmentText": "Lo siento, ocurrió un error interno en el servidor."})

@@ -4,7 +4,9 @@
 <div class="container mt-4">
     <h2>Registrar Movimiento de Canasta</h2>
 
-    <h5>Registros exitosos: {{ contador_registros }}</h5>
+    <div class="alert alert-success mb-4">
+        <strong>Registros exitosos:</strong> {{ contador_registros }}
+    </div>
 
     <form method="POST" autocomplete="off" class="mb-4">
         <div class="row">
